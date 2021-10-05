@@ -100,9 +100,11 @@ public class RedissonSpinLock extends RedissonBaseLock {
     }
 
     private <T> RFuture<Long> tryAcquireAsync(long leaseTime, TimeUnit unit, long threadId) {
+        // 如果有设置锁等待时长话，就直接调用tryLockInnerAsync方法获锁
         if (leaseTime != -1) {
             return tryLockInnerAsync(leaseTime, unit, threadId, RedisCommands.EVAL_LONG);
         }
+        // 没有设置等待锁的时长的话，加多一个监听器，也就是会调用lock.lock 会跑的逻辑，
         RFuture<Long> ttlRemainingFuture = tryLockInnerAsync(internalLockLeaseTime,
                 TimeUnit.MILLISECONDS, threadId, RedisCommands.EVAL_LONG);
         ttlRemainingFuture.onComplete((ttlRemaining, e) -> {

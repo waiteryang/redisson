@@ -275,6 +275,9 @@ public abstract class RedissonBaseLock extends RedissonExpirable implements RLoc
         return isHeldByThread(Thread.currentThread().getId());
     }
 
+    /**
+     * 判断锁是否被某个线程持有
+     */
     @Override
     public boolean isHeldByThread(long threadId) {
         RFuture<Boolean> future = commandExecutor.writeAsync(getRawName(), LongCodec.INSTANCE, RedisCommands.HEXISTS, getRawName(), getLockName(threadId));

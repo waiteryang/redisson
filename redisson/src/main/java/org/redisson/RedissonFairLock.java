@@ -98,6 +98,12 @@ public class RedissonFairLock extends RedissonLock implements RLock {
                 getLockName(threadId), wait);
     }
 
+    /**
+     * 如果该客户端面对是一个redis cluster集群，他首先会根据当前的redis key选择一台机器(crc16(key)%16384) 算出对应的Slot继而找到对应的redis实例节点),
+     * 紧接着执行加锁逻辑
+     *
+     * 加锁的核心逻辑
+     */
     @Override
     <T> RFuture<T> tryLockInnerAsync(long waitTime, long leaseTime, TimeUnit unit, long threadId, RedisStrictCommand<T> command) {
         long wait = threadWaitTime;
@@ -231,6 +237,9 @@ public class RedissonFairLock extends RedissonLock implements RLock {
         throw new IllegalArgumentException();
     }
 
+    /**
+     * 解锁
+     */
     @Override
     protected RFuture<Boolean> unlockInnerAsync(long threadId) {
         return evalWriteAsync(getRawName(), LongCodec.INSTANCE, RedisCommands.EVAL_BOOLEAN,

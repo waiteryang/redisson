@@ -215,17 +215,21 @@ public class RedissonLock extends RedissonBaseLock {
                 Collections.singletonList(getRawName()), unit.toMillis(leaseTime), getLockName(threadId));
     }
 
+    /**
+     * 主要的逻辑就是尝试加锁，成功了就返回true，失败了就进入死循环反复去尝试加锁。中途还有一些超时的判断
+     */
     @Override
     public boolean tryLock(long waitTime, long leaseTime, TimeUnit unit) throws InterruptedException {
         long time = unit.toMillis(waitTime);
         long current = System.currentTimeMillis();
         long threadId = Thread.currentThread().getId();
+        // 尝试获取锁，如果没取到锁，则获取锁的剩余超时时间
         Long ttl = tryAcquire(waitTime, leaseTime, unit, threadId);
         // lock acquired
         if (ttl == null) {
             return true;
         }
-        
+        // 如果waitTime已经超时了，就返回false
         time -= System.currentTimeMillis() - current;
         if (time <= 0) {
             acquireFailed(waitTime, unit, threadId);
@@ -252,7 +256,7 @@ public class RedissonLock extends RedissonBaseLock {
                 acquireFailed(waitTime, unit, threadId);
                 return false;
             }
-        
+            // 进入死循环，反复去调用tryAcquire尝试获取锁，ttl 为null时就是别的线程已经unlock了
             while (true) {
                 long currentTime = System.currentTimeMillis();
                 ttl = tryAcquire(waitTime, leaseTime, unit, threadId);
