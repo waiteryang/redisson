@@ -114,6 +114,7 @@ public class RedissonSpinLock extends RedissonBaseLock {
 
             // lock acquired
             if (ttlRemaining == null) {
+                // 当锁没有预设值释放时间才会调用看门狗线程
                 scheduleExpirationRenewal(threadId);
             }
         });
@@ -128,6 +129,7 @@ public class RedissonSpinLock extends RedissonBaseLock {
     <T> RFuture<T> tryLockInnerAsync(long leaseTime, TimeUnit unit, long threadId, RedisStrictCommand<T> command) {
         internalLockLeaseTime = unit.toMillis(leaseTime);
 
+        // 获取锁的操作采用lua脚本的形式，以保证指令的原子性
         return evalWriteAsync(getRawName(), LongCodec.INSTANCE, command,
                 "if (redis.call('exists', KEYS[1]) == 0) then " +
                         "redis.call('hincrby', KEYS[1], ARGV[2], 1); " +
