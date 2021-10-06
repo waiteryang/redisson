@@ -272,6 +272,7 @@ public class RedissonLock extends RedissonBaseLock {
              */
             while (true) {
                 long currentTime = System.currentTimeMillis();
+                // 再次尝试获取锁
                 ttl = tryAcquire(waitTime, leaseTime, unit, threadId);
                 // lock acquired
                 if (ttl == null) {
