@@ -286,13 +286,16 @@ public class RedissonLock extends RedissonBaseLock {
                 }
 
                 // waiting for message
+                // 阻塞等待锁(通过信号量(共享锁)阻塞，等待解锁消息)
                 currentTime = System.currentTimeMillis();
                 if (ttl >= 0 && ttl < time) {
+                    // 如果剩余时间ttl小于wait time，就在ttl时间内，从Entry的信号量获取一个许可(除非被中断或者一直没有可用的许可)
                     subscribeFuture.getNow().getLatch().tryAcquire(ttl, TimeUnit.MILLISECONDS);
                 } else {
+                    // 则就在wait time 时间范围内等待可以通过信号量
                     subscribeFuture.getNow().getLatch().tryAcquire(time, TimeUnit.MILLISECONDS);
                 }
-
+                // 更新剩余的等待时间(最大等待时间-已经消耗的阻塞时间)
                 time -= System.currentTimeMillis() - currentTime;
                 if (time <= 0) {
                     acquireFailed(waitTime, unit, threadId);
@@ -300,6 +303,7 @@ public class RedissonLock extends RedissonBaseLock {
                 }
             }
         } finally {
+            // 无论是否获得锁，都要取消订阅解锁消息
             unsubscribe(subscribeFuture, threadId);
         }
 //        return get(tryLockAsync(waitTime, leaseTime, unit));

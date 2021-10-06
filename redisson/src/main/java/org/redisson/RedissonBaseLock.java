@@ -166,7 +166,14 @@ public abstract class RedissonBaseLock extends RedissonExpirable implements RLoc
         
         ee.setTimeout(task);
     }
-    
+
+    /**
+     * Watch Dog机制其实就是一个后台定时任务线程，获取锁成功之后，会将持有锁的线程放入到一个EXPIRATION_RENEWAL_MAP 里面
+     * 然后每隔10秒 (internalLockLeaseTime / 3) 检查一下，如果客户端1还有锁key(判断客户端是否还持有key，其实就是遍历EXPIRATION_RENEWAL_MAP 里面
+     * 线程id 然后根据线程id去Redis 中查，如果存在就延长key的时间),那么就会不断的延长锁key的生存时间。
+     *
+     * 注意:这里有一个细节问题，如果服务宕机了，Watch Dog 机制线程也就没有了，此时就不会延长key的过期时间，到了30S之后就会自动过期了，其他线程就可以获取到锁了
+     */
     protected void scheduleExpirationRenewal(long threadId) {
         ExpirationEntry entry = new ExpirationEntry();
         ExpirationEntry oldEntry = EXPIRATION_RENEWAL_MAP.putIfAbsent(getEntryName(), entry);
