@@ -229,7 +229,7 @@ public class RedissonLock extends RedissonBaseLock {
         if (ttl == null) {
             return true;
         }
-        // 如果waitTime已经超时了，就返回false
+        // 如果waitTime已经超时了，就返回false、【申请锁的耗时如果大于等于最大等待时间，则申请锁失败】
         time -= System.currentTimeMillis() - current;
         if (time <= 0) {
             acquireFailed(waitTime, unit, threadId);
@@ -237,7 +237,15 @@ public class RedissonLock extends RedissonBaseLock {
         }
         
         current = System.currentTimeMillis();
+        /**
+         * 2.订阅锁释放事件，并通过await 方法阻塞等待锁释放，有效的解决了无效的锁申请浪费资源的问题:
+         * 基于信息量，当锁被其他资源占用时，当前线程通过Redis 的 channel 订阅锁的释放事件，一旦锁释放会发消息通知待等待的线程进行竞争
+         *
+         * 当 this.await 返回false，说明等待时间已经超过获取锁最大等待时间，取消订阅并返回获取锁失败。
+         * 当 this.await 返回true，进入循环尝试获取锁
+         */
         RFuture<RedissonLockEntry> subscribeFuture = subscribe(threadId);
+        // await 方法内部是用 CountDownLatch 来实现阻塞，获取subscribe 异步执行的结果（应用了 Netty 的 Future）
         if (!subscribeFuture.await(time, TimeUnit.MILLISECONDS)) {
             if (!subscribeFuture.cancel(false)) {
                 subscribeFuture.onComplete((res, e) -> {
@@ -251,12 +259,17 @@ public class RedissonLock extends RedissonBaseLock {
         }
 
         try {
+            // 计算获取锁的总耗时，如果大于等于最大等待时间，则获取锁失败。
             time -= System.currentTimeMillis() - current;
             if (time <= 0) {
                 acquireFailed(waitTime, unit, threadId);
                 return false;
             }
-            // 进入死循环，反复去调用tryAcquire尝试获取锁，ttl 为null时就是别的线程已经unlock了
+            /**
+             * 3.收到锁释放的信号后，在最大等待时间之内，循环一次接着一次的尝试获取锁
+             * 获取锁成功，则立马返回true
+             * 若在最大等待时间之内还没获取到锁，则认为获取锁失败，返回false 结束循环
+             */
             while (true) {
                 long currentTime = System.currentTimeMillis();
                 ttl = tryAcquire(waitTime, leaseTime, unit, threadId);
