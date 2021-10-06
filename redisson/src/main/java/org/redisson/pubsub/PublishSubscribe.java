@@ -72,7 +72,7 @@ abstract class PublishSubscribe<E extends PubSubEntry<E>> {
                 semaphore.release();
                 return;
             }
-
+            // 判断RedisLockEntry 是否存在
             E entry = entries.get(entryName);
             if (entry != null) {
                 entry.acquire();
@@ -80,7 +80,7 @@ abstract class PublishSubscribe<E extends PubSubEntry<E>> {
                 entry.getPromise().onComplete(new TransferListener<E>(newPromise));
                 return;
             }
-
+            // 2 创建RedisLockEntry
             E value = createEntry(newPromise);
             value.acquire();
 
@@ -91,8 +91,9 @@ abstract class PublishSubscribe<E extends PubSubEntry<E>> {
                 oldValue.getPromise().onComplete(new TransferListener<E>(newPromise));
                 return;
             }
-
+            // 创建一个监听器，别的线程进行redis-pub 命令之后进行调用
             RedisPubSubListener<Object> listener = createListener(channelName, value);
+            // 底层交给netty调用redis-sub命令
             service.subscribe(LongCodec.INSTANCE, channelName, semaphore, listener);
         });
 
